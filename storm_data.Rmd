@@ -1,0 +1,173 @@
+Reproducible Research: Peer Assessment 2
+==========================================
+yonge zeng 
+
+## Impact of Severe Weather Events on Public Health and Economy in the United States
+
+### Synonpsis  
+In this report, we aim to analyze the impact of different weather events on public health and economy based on the storm database collected from the U.S. National Oceanic and Atmospheric Administration's (NOAA) from 1950 - 2011. We will use the estimates of fatalities, injuries, property and crop damage to decide which types of event are most harmful to the population health and economy. From these data, we found that excessive heat and tornado are most harmful with respect to population health, while flood, drought, and hurricane/typhoon have the greatest economic consequences.
+
+### Basic settings
+```{r}
+setwd("E:/OneDrive/Coursera/05# Reproducible Research/Reproducible Research Project-2/REPRODUCIBLE-RESEARCH-Course-project-2")
+echo = TRUE  # Always make code visible
+options(scipen = 1)  # Turn off scientific notations for numbers
+library(R.utils)
+library(ggplot2)
+library(plyr)
+
+library(dplyr)
+require(gridExtra)
+
+if(!require(png)){
+  install.packages("png")
+  library(png)
+}
+```
+
+### Data Processing
+First, we download the data file and unzip it.
+```{r}
+setwd("E:/OneDrive/Coursera/05# Reproducible Research/Reproducible Research Project-2/REPRODUCIBLE-RESEARCH-Course-project-2")
+
+if (!"stormData.csv.bz2" %in% dir("./data/")) {
+    print("hhhh")
+    download.file("http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", destfile = "data/stormData.csv.bz2")
+    # bunzip2("data/stormData.csv.bz2", overwrite=T, remove=F)
+    bunzip2("data/stormData.csv.bz2", "data/stormData.csv",overwrite=T, remove=F)
+}
+
+```
+Then, we read the generated csv file. If the data already exists in the working environment, we do not need to load it again. Otherwise, we read the csv file.
+```{r}
+if (!"stormData" %in% ls()) {
+    stormData <- read.csv("data/stormData.csv", sep = ",")
+}
+dim(stormData)
+head(stormData, n = 2)
+```
+There are 692288 rows and 37 columns in total.
+The events in the database start in the year 1950 and end in November 2011. In the earlier years of the database there are generally fewer events recorded, most likely due to a lack of good records. More recent years should be considered more complete.
+
+Below are testing  purpose.
+
+```{r message=TRUE, warning=TRUE, paged.print=TRUE}
+##测试功能的问题
+  x <- c("3/22/1953 0:00:00", "4/18/1950 0:00:00")
+  strptime(x, "%m/%d/%Y %H:%M:%S")
+
+  y<-as.numeric(format(as.Date(x, "%m/%d/%Y %H:%M:%S"), "%Y"))
+  y
+  class(stormData)
+  dim(stormData[2])
+  dim(stormData[2])==37
+  dim(stormData)
+  
+  dim(stormData)[2] == 37
+
+```
+```{r}
+
+stormx=stormData
+
+## stormx <- read.csv("./repdata_data_StormData.csv.bz2")
+  
+Statelist<- list("AK","AL","AR","AZ","CA","CO","CT","DC","DE","FL","GA","GU","HI","IA","ID", "IL","IN","KS","KY","LA","MA","MD","ME","MH","MI","MN","MO","MS","MT","NC","ND","NE","NH","NJ","NM","NV","NY", "OH","OK","OR","PA","PR","PW","RI","SC","SD","TN","TX","UT","VA","VI","VT","WA","WI","WV","WY")
+
+#Removes unrelated rows by only retaining the rows that have state in the STATE column.
+
+
+storm <- stormx[ stormx$STATE %in% Statelist,]
+
+#Removes columns not needed for this analysis
+
+storm <- select(storm, EVTYPE, FATALITIES, INJURIES, PROPDMG, PROPDMGEXP, CROPDMG, CROPDMGEXP)
+
+
+
+```
+
+### This next section substitutes values on the PROPDMGEXP and CROPDMG EXP to make them numerical, 
+### The source of information is from https://rpubs.com/flyingdisc/PROPDMGEXP 
+```{r}
+
+#creates a backup csv file and reads the file with strings as characters
+write.csv(storm,'storm.csv')
+storm<-read.csv("storm.csv",row.names=NULL, stringsAsFactors = FALSE)
+
+
+##creates replacement dataframe for PROPDMGEXP and CROPDMGEXP
+PROPDMGEXP = c("H","h","K","k","M","m","B","b","+","-","?","1","2","3","4","5","6","7","8","0","") 
+PROPREPVAL = c("100","100","1000","1000","1000000","1000000","1000000000","1000000000","1","0","0","10","10","10","10","10","10","10","10","10","0")
+
+CROPDMGEXP = c("H","h","K","k","M","m","B","b","+","-","?","1","2","3","4","5","6","7","8","0","") 
+CROPREPVAL = c("100","100","1000","1000","1000000","1000000","1000000000","1000000000","1","0","0","10","10","10","10","10","10","10","10","10","0")
+
+
+#merges the new replacement values with the original dataframe
+propexpdf = data.frame(PROPDMGEXP, PROPREPVAL)
+storm2 <- merge(x=storm, y=propexpdf, by = "PROPDMGEXP", all.x=TRUE)
+
+cropexpdf = data.frame(CROPDMGEXP, CROPREPVAL)
+storm3 <- merge(x=storm2, y=cropexpdf, by = "CROPDMGEXP", all.x=TRUE)
+
+#creates another backup prior to plotting
+write.csv(storm3,'storm3.csv')
+storm3<-read.csv("storm3.csv",row.names=NULL, stringsAsFactors = TRUE)
+
+```
+
+## Results
+
+### Aggregate and summarizes the top 5 events with most fatalities 
+```{r}
+  deaths <- aggregate(FATALITIES~EVTYPE, storm3, sum)
+  deaths <- deaths[with(deaths, order(-FATALITIES)), ]
+  deaths <- deaths[1:5,]
+  head(deaths)
+  png("plot1.png", width=800, height=600)
+  plot1 <- barplot(deaths$FATALITIES, names = deaths$EVTYPE, xlab = "Events", ylab = "Fatalities", main = "Deaths by Event Type")
+  dev.off() 
+  img1 <- readPNG("./plot1.png")
+  grid::grid.raster(img1)
+  
+```
+
+### Aggregate and summarizes the top 5 events with most injuries 
+
+```{r}  
+  injur <- aggregate(INJURIES~EVTYPE, storm3, sum)
+  injur <- injur[with(injur, order(-INJURIES)), ]
+  injur <- injur[1:5,]
+  head(injur)
+  png("plot2.png", width=800, height=600)
+  plot2 <- barplot(injur$INJURIES, names = injur$EVTYPE, xlab = "Events", ylab = "Injuries", main = "Injuries by Event Type")
+  dev.off() 
+  img2 <- readPNG("./plot2.png")
+  grid::grid.raster(img2)
+  
+# Set factors as numeric  
+storm3[,"CROPDMG"] <- as.numeric(as.character(storm3[,"CROPDMG"]))
+storm3[,"CROPREPVAL"] <- as.numeric(as.character(storm3[,"CROPREPVAL"]))
+storm3[,"PROPDMG"] <- as.numeric(as.character(storm3[,"PROPDMG"]))
+storm3[,"PROPREPVAL"] <- as.numeric(as.character(storm3[,"PROPREPVAL"]))
+
+```
+
+## Mutates the dataframe by using the exponents for crop and property damage, then adds the two to determine economic cost.  
+```{r}
+storm4 <- mutate(storm3, CROPTOTAL = CROPREPVAL * CROPDMG)
+storm5 <- mutate(storm4, PROPTOTAL = PROPREPVAL * PROPDMG)
+storm6 <- mutate(storm5, COSTTOTAL = CROPTOTAL + PROPTOTAL)
+
+cost <- aggregate(COSTTOTAL~EVTYPE, storm6, sum)
+cost <- cost[with(cost, order(-COSTTOTAL)), ]
+cost <- cost[1:5,]
+head(cost)
+png("plot3.png", width=800, height=600)
+plot3 <- barplot(cost$COSTTOTAL, names = cost$EVTYPE, xlab = "Type of Event", ylab = "Total Economic Damage", main = "Total Damage Costs by Event Type")
+dev.off() 
+img3 <- readPNG("./plot3.png")
+grid::grid.raster(img3)
+
+```
